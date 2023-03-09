@@ -107,8 +107,6 @@ int main (int argc, char** argv)
       }
     }
     
-    std::cout << "Nearest point: index=" << indices[0] << ", distance=" << distances[0] << std::endl;
-
     pcl::toROSMsg(cloud, output);
     pub.publish (output);
     rate.sleep();
