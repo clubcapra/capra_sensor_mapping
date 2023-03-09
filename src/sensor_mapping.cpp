@@ -7,31 +7,38 @@
 
 ros::Publisher pub;
 
-void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& input)
-{
-  // Create a container for the data.
-  sensor_msgs::PointCloud2 output;
-
-  // Do data processing here...
-  output = *input;
-
-  // Publish the data.
-  pub.publish (output);
-}
-
-
 int main (int argc, char** argv)
 {
   // Initialize ROS
   ros::init (argc, argv, "capra_sensor_mapping");
   ros::NodeHandle nh;
 
-  // Create a ROS subscriber for the input point cloud
-  ros::Subscriber sub = nh.subscribe ("input", 1, cloud_cb);
+  sensor_msgs::PointCloud2 output;
 
   // Create a ROS publisher for the output point cloud
-  pub = nh.advertise<sensor_msgs::PointCloud2> ("output", 1);
+  pub = nh.advertise<sensor_msgs::PointCloud2>("output", 1);
 
-  // Spin
-  ros::spin ();
+  ros::AsyncSpinner spinner(1);
+  spinner.start();
+
+  ros::Rate rate(10.0);
+  while (ros::ok()){
+    pcl::PointCloud<pcl::PointXYZI> cloud;
+    cloud.width    = 5;
+    cloud.height   = 1;
+    cloud.is_dense = false;
+    cloud.resize (cloud.width * cloud.height);
+
+    for(int i = 0; i<5; i++){
+      cloud.points.at(i).x=i;
+      cloud.points.at(i).z=0;
+      cloud.points.at(i).y=0;
+      cloud.points.at(i).intensity=i;
+    }
+    cloud.header.frame_id = "map";
+    pcl::toROSMsg(cloud, output);
+    pub.publish (output);
+    // Spin
+    rate.sleep();
+  }
 }
