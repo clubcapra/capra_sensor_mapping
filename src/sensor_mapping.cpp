@@ -5,11 +5,16 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/search/search.h>
+#include <pcl/kdtree/kdtree_flann.h>
 #include <tf/transform_listener.h>
 #include <string>
 
 ros::Publisher pub;
 float sensor_data=-1;
+
+float grid_size = 1;
+float gain = 0.1;
 
 void sensorCallback(const std_msgs::Float64::ConstPtr& msg){
   sensor_data = msg->data;
@@ -29,6 +34,12 @@ int main (int argc, char** argv)
   }
   if(nh.getParam("sensor_frame", sensor_frame)==false){
     ROS_WARN("Missing sensor_frame Param, assuming base_link");
+  }
+  if(nh.getParam("filter_gain", gain)==false){
+    ROS_WARN("Missing filter_gain Param, assuming 0.1");
+  }
+  if(nh.getParam("grid_size", grid_size)==false){
+    ROS_WARN("Missing grid_size Param, assuming 1");
   }
 
   sensor_msgs::PointCloud2 output;
@@ -52,7 +63,7 @@ int main (int argc, char** argv)
   ros::AsyncSpinner spinner(1);
   spinner.start();
 
-  ros::Rate rate(1000.0);
+  ros::Rate rate(100.0);
   while (ros::ok()){
 
     tf::StampedTransform transform;
@@ -65,15 +76,39 @@ int main (int argc, char** argv)
       continue;
     }
 
-    pcl::PointXYZI point;
 
-    point.x=transform.getOrigin().x();
-    point.y=transform.getOrigin().y();
-    point.z=transform.getOrigin().z();
-    point.intensity=sensor_data;
+    pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
+    kdtree.setInputCloud(cloud.makeShared());
 
-    cloud.insert(cloud.end(), point);
- 
+    // set the position of the point to search for
+    pcl::PointXYZI search_point;
+    search_point.x = grid_size * round(transform.getOrigin().x()/grid_size);
+    search_point.y = grid_size * round(transform.getOrigin().y()/grid_size);
+    search_point.z = grid_size * round(transform.getOrigin().z()/grid_size);
+
+    // perform the nearest neighbor search
+    int k = 1; // search for the nearest point
+    std::vector<int> indices(k);
+    std::vector<float> distances(k);
+    kdtree.nearestKSearch(search_point, k, indices, distances);
+
+
+    if(sensor_data >= 0){
+      if(distances[0] >= grid_size){
+        pcl::PointXYZI point;
+        point.x = grid_size * round(transform.getOrigin().x()/grid_size);
+        point.y = grid_size * round(transform.getOrigin().y()/grid_size);
+        point.z = grid_size * round(transform.getOrigin().z()/grid_size);
+        point.intensity=sensor_data;
+        cloud.insert(cloud.end(), point);
+      }
+      else{
+        cloud.at(indices[0]).intensity =  cloud.at(indices[0]).intensity  + gain * (sensor_data - cloud.at(indices[0]).intensity);
+      }
+    }
+    
+    std::cout << "Nearest point: index=" << indices[0] << ", distance=" << distances[0] << std::endl;
+
     pcl::toROSMsg(cloud, output);
     pub.publish (output);
     rate.sleep();
