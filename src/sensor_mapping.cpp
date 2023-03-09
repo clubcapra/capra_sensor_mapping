@@ -4,6 +4,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <tf/transform_listener.h>
 
 ros::Publisher pub;
 
@@ -15,6 +16,8 @@ int main (int argc, char** argv)
 
   sensor_msgs::PointCloud2 output;
 
+  tf::TransformListener listener;
+
   // Create a ROS publisher for the output point cloud
   pub = nh.advertise<sensor_msgs::PointCloud2>("output", 1);
 
@@ -23,6 +26,19 @@ int main (int argc, char** argv)
 
   ros::Rate rate(10.0);
   while (ros::ok()){
+
+    tf::StampedTransform transform;
+    try{
+      listener.lookupTransform("map", "base_link", ros::Time(0), transform);
+    }
+    catch (tf::TransformException ex){
+      ROS_ERROR("%s", ex.what());
+      ros::Duration(1.0).sleep();
+      continue;
+    }
+
+    ROS_INFO("x: %.2f, y: %.2f, z: %.2f", transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+
     pcl::PointCloud<pcl::PointXYZI> cloud;
     cloud.width    = 5;
     cloud.height   = 1;
