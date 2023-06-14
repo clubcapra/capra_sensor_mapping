@@ -18,6 +18,7 @@ float gain = 0.1;
 
 void sensorCallback(const std_msgs::Float64::ConstPtr& msg){
   sensor_data = msg->data;
+  ROS_WARN("Missin");
 }
 
 int main (int argc, char** argv)
@@ -25,20 +26,22 @@ int main (int argc, char** argv)
   // Initialize ROS
   ros::init (argc, argv, "capra_sensor_mapping");
   ros::NodeHandle nh;
+  ros::NodeHandle p_nh("~");
+  
 
   std::string reference_frame = "map";
   std::string sensor_frame = "base_link";
 
-  if(nh.getParam("reference_frame", reference_frame)==false){
+  if(p_nh.getParam("reference_frame", reference_frame)==false){
     ROS_WARN("Missing reference_frame Param, assuming map");
   }
-  if(nh.getParam("sensor_frame", sensor_frame)==false){
+  if(p_nh.getParam("sensor_frame", sensor_frame)==false){
     ROS_WARN("Missing sensor_frame Param, assuming base_link");
   }
-  if(nh.getParam("filter_gain", gain)==false){
+  if(p_nh.getParam("filter_gain", gain)==false){
     ROS_WARN("Missing filter_gain Param, assuming 0.1");
   }
-  if(nh.getParam("grid_size", grid_size)==false){
+  if(p_nh.getParam("grid_size", grid_size)==false){
     ROS_WARN("Missing grid_size Param, assuming 1");
   }
 
@@ -56,14 +59,14 @@ int main (int argc, char** argv)
 
   pub = nh.advertise<sensor_msgs::PointCloud2>("output", 1);
 
-  ros::Subscriber sub = nh.subscribe("sensor_input", 1, sensorCallback);
+  ros::Subscriber sub = nh.subscribe("/radiation", 1, sensorCallback);
 
   ros::Duration(1.0).sleep();
 
   ros::AsyncSpinner spinner(1);
   spinner.start();
 
-  ros::Rate rate(100.0);
+  ros::Rate rate(15.0);
   while (ros::ok()){
 
     tf::StampedTransform transform;
@@ -106,7 +109,6 @@ int main (int argc, char** argv)
         cloud.at(indices[0]).intensity =  cloud.at(indices[0]).intensity  + gain * (sensor_data - cloud.at(indices[0]).intensity);
       }
     }
-    
     pcl::toROSMsg(cloud, output);
     pub.publish (output);
     rate.sleep();
